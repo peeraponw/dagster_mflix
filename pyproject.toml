@@ -7,4 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "dagster-embedded-elt>=0.25.6",
     "dagster>=1.9.6",
+    "dlt[snowflake]>=1.5.0",
+    "pymongo>=4.10.1",
+    "scikit-learn>=1.6.0",
 ]
