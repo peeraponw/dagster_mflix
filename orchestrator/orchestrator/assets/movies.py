@@ -1,5 +1,6 @@
 from dagster_snowflake import SnowflakeResource
-from dagster import asset
+from dagster import asset, AssetExecutionContext
+from ..partitions import monthly_partition
 
 import os
 import pandas as pd
@@ -28,10 +29,12 @@ def user_engagement(snowflake: SnowflakeResource) -> None:
     eng_df.to_csv("data/movies_engagement.csv", index=False)
 
 @asset(
-        deps=['dlt_mongodb_embedded_movies']
+        deps=['dlt_mongodb_embedded_movies'],
+        partitions_def=monthly_partition
 )
-def top_movies_by_month(snowflake: SnowflakeResource) -> None:
-    query = """
+def top_movies_by_month(context: AssetExecutionContext, snowflake: SnowflakeResource) -> None:
+    partition_date = context.partition_key
+    query = f"""
     select 
         movies.title,
         movies.released,
@@ -40,20 +43,25 @@ def top_movies_by_month(snowflake: SnowflakeResource) -> None:
         genres.value as genres
     from EMBEDDED_MOVIES movies
     join EMBEDDED_MOVIES__GENRES genres on movies._dlt_id = genres._dlt_parent_id
-    where released >= '2015-01-01'::date
-    and released < '2015-01-01'::date + interval '1 month'
+    where released >= '{partition_date}'::date
+    and released < '{partition_date}'::date + interval '1 month'
     """
     with snowflake.get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(query)
         movies_df = cursor.fetch_pandas_all()
+    
+    movies_df = movies_df.loc[movies_df.groupby('GENRES')['IMDB__RATING'].idxmax().dropna()]
 
-    movies_df['window'] = '2015-01-01'
-    movies_df = movies_df.loc[movies_df.groupby('GENRES')['IMDB__RATING'].idxmax()]
+    movies_df['partition_date'] = partition_date
 
-    # with open('data/top_movies_by_month.csv', 'w') as f:
-    #     movies_df.to_csv(f, index=False)
-    movies_df.to_csv("data/top_movies_by_month.csv", index=False)
+    try:
+        exist = pd.read_csv("data/top_movies_by_month.csv")
+        exist = exist.loc[exist['partition_date'] != partition_date]
+        exist = pd.concat([exist, movies_df]).sort_values(by="partition_date")
+        exist.to_csv("data/top_movies_by_month.csv", index=False)
+    except FileNotFoundError:
+        movies_df.to_csv("data/top_movies_by_month.csv", index=False)
 
 @asset(
         deps=['user_engagement']
