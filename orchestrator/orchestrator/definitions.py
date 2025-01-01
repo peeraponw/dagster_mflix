@@ -14,7 +14,7 @@ snowflake = SnowflakeResource(
     role=EnvVar("DESTINATION__SNOWFLAKE__CREDENTIALS__ROLE"),
     database=EnvVar("DESTINATION__SNOWFLAKE__CREDENTIALS__DATABASE"),
     warehouse=EnvVar("DESTINATION__SNOWFLAKE__CREDENTIALS__WAREHOUSE"),
-    schema=EnvVar("mflix"),
+    schema=EnvVar("DESTINATION__SNOWFLAKE__CREDENTIALS__SCHEMA"),
 )
 
 
